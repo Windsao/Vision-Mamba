@@ -7,11 +7,10 @@ import torch.nn.functional as F
 
 import pytest
 
-from einops import rearrange
+from einops import rearrange, repeat
 
 from causal_conv1d.causal_conv1d_interface import causal_conv1d_fn, causal_conv1d_ref
 from causal_conv1d.causal_conv1d_interface import causal_conv1d_update, causal_conv1d_update_ref
-from causal_conv1d.causal_conv1d_varlen import causal_conv1d_varlen_states, causal_conv1d_varlen_states_ref
 
 
 @pytest.mark.parametrize("return_final_states", [False, True])
@@ -107,18 +106,14 @@ def test_causal_conv1d(dim, seqlen, width, has_bias, silu_activation, itype, cha
 @pytest.mark.parametrize("itype", [torch.float32, torch.float16, torch.bfloat16])
 # @pytest.mark.parametrize('itype', [torch.float16])
 @pytest.mark.parametrize("silu_activation", [False, True])
-# @pytest.mark.parametrize('silu_activation', [True])
+# @pytest.mark.parametrize('silu_activation', [False])
 @pytest.mark.parametrize("has_bias", [False, True])
 # @pytest.mark.parametrize('has_bias', [True])
-@pytest.mark.parametrize("has_cache_seqlens", [False, True])
-# @pytest.mark.parametrize('has_cache_seqlens', [True])
-@pytest.mark.parametrize("seqlen", [1, 4, 5])
-# @pytest.mark.parametrize('seqlen', [4])
 @pytest.mark.parametrize("width", [2, 3, 4])
-# @pytest.mark.parametrize('width', [4])
+# @pytest.mark.parametrize('width', [2])
 @pytest.mark.parametrize("dim", [2048, 2048 + 16, 4096])
 # @pytest.mark.parametrize("dim", [2048])
-def test_causal_conv1d_update(dim, width, seqlen, has_cache_seqlens, has_bias, silu_activation, itype):
+def test_causal_conv1d_update(dim, width, has_bias, silu_activation, itype):
     device = "cuda"
     rtol, atol = (3e-4, 1e-3) if itype == torch.float32 else (3e-3, 5e-3)
     if itype == torch.bfloat16:
@@ -126,12 +121,11 @@ def test_causal_conv1d_update(dim, width, seqlen, has_cache_seqlens, has_bias, s
     rtolw, atolw = (1e-3, 1e-3)
     # set seed
     torch.random.manual_seed(0)
-    batch = 64
+    batch = 2
     # batch = 1
     # dim = 64
-    x = torch.randn(batch, seqlen, dim, device=device, dtype=itype).transpose(-1, -2)
-    state_len = torch.randint(width - 1, width + 10, (1,)).item()
-    conv_state = torch.randn(batch, state_len, dim, device=device, dtype=itype).transpose(-1, -2)
+    x = torch.randn(batch, dim, device=device, dtype=itype)
+    conv_state = torch.randn(batch, dim, width, device=device, dtype=itype)
     weight = torch.randn(dim, width, device=device, dtype=torch.float32, requires_grad=True)
     if has_bias:
         bias = torch.randn(dim, device=device, dtype=torch.float32, requires_grad=True)
@@ -139,33 +133,13 @@ def test_causal_conv1d_update(dim, width, seqlen, has_cache_seqlens, has_bias, s
         bias = None
     conv_state_ref = conv_state.detach().clone()
     activation = None if not silu_activation else "silu"
-    cache_seqlens = (torch.randint(0, 1024, (batch,), dtype=torch.int32, device=device)
-                     if has_cache_seqlens else None)
-    out = causal_conv1d_update(x, conv_state, weight, bias, activation=activation, cache_seqlens=cache_seqlens)
-    out_ref = causal_conv1d_update_ref(x, conv_state_ref, weight, bias, activation=activation, cache_seqlens=cache_seqlens)
+    out = causal_conv1d_update(x, conv_state, weight, bias, activation=activation)
+    out_ref = causal_conv1d_update_ref(x, conv_state_ref, weight, bias, activation=activation)
 
     print(f"Output max diff: {(out - out_ref).abs().max().item()}")
     print(f"Output mean diff: {(out - out_ref).abs().mean().item()}")
     assert torch.equal(conv_state, conv_state_ref)
     assert torch.allclose(out, out_ref, rtol=rtol, atol=atol)
-
-
-@pytest.mark.parametrize("itype", [torch.float32, torch.float16, torch.bfloat16])
-# @pytest.mark.parametrize('itype', [torch.float16])
-@pytest.mark.parametrize("dim", [2048, 2048 + 16, 4096])
-# @pytest.mark.parametrize("dim", [2048])
-def test_causal_conv1d_get_states(dim, itype):
-    device = "cuda"
-    # set seed
-    torch.random.manual_seed(0)
-    seqlens = torch.randint(1, 32, (100,), device=device)
-    total_seqlen = seqlens.sum().item()
-    x = torch.randn(total_seqlen, dim, device=device, dtype=itype)
-    cu_seqlens = F.pad(seqlens.cumsum(0), (1, 0))
-    state_len = 20
-    out = causal_conv1d_varlen_states(x, cu_seqlens, state_len)
-    out_ref = causal_conv1d_varlen_states_ref(x, cu_seqlens, state_len)
-    assert torch.equal(out, out_ref)
 
 
 # @pytest.mark.parametrize("channel_last", [False, True])

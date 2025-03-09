@@ -21,7 +21,6 @@ struct ConvParamsBase {
     index_t out_c_stride;
     index_t out_l_stride;
 
-    int conv_state_len;
     index_t conv_state_batch_stride;
     index_t conv_state_c_stride;
     index_t conv_state_l_stride;
@@ -33,7 +32,6 @@ struct ConvParamsBase {
     void *__restrict__ out_ptr;
 
     void *__restrict__ conv_state_ptr;
-    int32_t *__restrict__ cache_seqlens;
 
     void *__restrict__ seq_idx_ptr;
 

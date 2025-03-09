@@ -1,0 +1,15 @@
+artifact_uri: file:///home/user/Vision-Mamba/vim/mlruns/0/4bbbe65847e64c32824d9917f1360711/artifacts
+end_time: 1741563461439
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 4bbbe65847e64c32824d9917f1360711
+run_name: vim_tiny_patch16_224_bi
+run_uuid: 4bbbe65847e64c32824d9917f1360711
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1741563447101
+status: 3
+tags: []
+user_id: user
